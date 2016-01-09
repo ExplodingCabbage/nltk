@@ -529,29 +529,6 @@ class PorterStemmer(StemmerI):
 
         return word
 
-    def stem_word(self, p, i=0, j=None):
-        """
-        Returns the stem of p, or, if i and j are given, the stem of p[i:j+1].
-        """
-        ## --NLTK--
-        if j is None and i == 0:
-            word = p
-        else:
-            if j is None:
-                j = len(p) - 1
-            word = p[i:j+1]
-
-        if word in self.pool:
-            return self.pool[word]
-
-        word = self._step1ab(word)
-        word = self._step1c(word)
-        word = self._step2(word)
-        word = self._step3(word)
-        word = self._step4(word)
-        word = self._step5(word)
-        return word
-
     def _adjust_case(self, word, stem):
         lower = word.lower()
 
@@ -583,10 +560,27 @@ class PorterStemmer(StemmerI):
     #        ret = ret + separator
     #    return ret
 
-    ## --NLTK--
-    ## Define a stem() method that implements the StemmerI interface.
     def stem(self, word):
-        stem = self.stem_word(word.lower(), 0, len(word) - 1)
+        stem = word.lower()
+        
+        # --NLTK--
+        if word in self.pool:
+            return self.pool[word]
+
+        if len(word) <= 2:
+            return word # --DEPARTURE--
+        # With this line, strings of length 1 or 2 don't go through the
+        # stemming process, although no mention is made of this in the
+        # published algorithm. Remove the line to match the published
+        # algorithm.
+        
+        stem = self._step1ab(stem)
+        stem = self._step1c(stem)
+        stem = self._step2(stem)
+        stem = self._step3(stem)
+        stem = self._step4(stem)
+        stem = self._step5(stem)
+        
         return self._adjust_case(word, stem)
 
     def __repr__(self):
