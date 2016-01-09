@@ -541,25 +541,6 @@ class PorterStemmer(StemmerI):
 
         return ret
 
-    ## --NLTK--
-    ## Don't use this procedure; we want to work with individual
-    ## tokens, instead.  (commented out the following procedure)
-    #def stem(self, text):
-    #    parts = re.split("(\W+)", text)
-    #    numWords = (len(parts) + 1)/2
-    #
-    #    ret = ""
-    #    for i in xrange(numWords):
-    #        word = parts[2 * i]
-    #        separator = ""
-    #        if ((2 * i) + 1) < len(parts):
-    #            separator = parts[(2 * i) + 1]
-    #
-    #        stem = self.stem_word(string.lower(word), 0, len(word) - 1)
-    #        ret = ret + self.adjust_case(word, stem)
-    #        ret = ret + separator
-    #    return ret
-
     def stem(self, word):
         stem = word.lower()
         
