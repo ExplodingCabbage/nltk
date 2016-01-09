@@ -529,18 +529,6 @@ class PorterStemmer(StemmerI):
 
         return word
 
-    def _adjust_case(self, word, stem):
-        lower = word.lower()
-
-        ret = ""
-        for x in range(len(stem)):
-            if lower[x] == stem[x]:
-                ret += word[x]
-            else:
-                ret += stem[x]
-
-        return ret
-
     def stem(self, word):
         stem = word.lower()
         
@@ -562,7 +550,7 @@ class PorterStemmer(StemmerI):
         stem = self._step4(stem)
         stem = self._step5(stem)
         
-        return self._adjust_case(word, stem)
+        return stem
 
     def __repr__(self):
         return '<PorterStemmer>'
