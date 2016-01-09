@@ -589,27 +589,8 @@ class PorterStemmer(StemmerI):
         stem = self.stem_word(word.lower(), 0, len(word) - 1)
         return self._adjust_case(word, stem)
 
-    ## --NLTK--
-    ## Add a string representation function
     def __repr__(self):
         return '<PorterStemmer>'
-
-## --NLTK--
-## This test procedure isn't applicable.
-#if __name__ == '__main__':
-#    p = PorterStemmer()
-#    if len(sys.argv) > 1:
-#        for f in sys.argv[1:]:
-#            with open(f, 'r') as infile:
-#                while 1:
-#                    w = infile.readline()
-#                    if w == '':
-#                        break
-#                    w = w[:-1]
-#                    print(p.stem(w))
-
-##--NLTK--
-## Added a demo() function
 
 def demo():
     """
