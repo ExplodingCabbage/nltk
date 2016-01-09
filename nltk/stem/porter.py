@@ -544,13 +544,6 @@ class PorterStemmer(StemmerI):
         if word in self.pool:
             return self.pool[word]
 
-        if len(word) <= 2:
-            return word # --DEPARTURE--
-        # With this line, strings of length 1 or 2 don't go through the
-        # stemming process, although no mention is made of this in the
-        # published algorithm. Remove the line to match the published
-        # algorithm.
-
         word = self._step1ab(word)
         word = self._step1c(word)
         word = self._step2(word)
@@ -650,7 +643,3 @@ def demo():
     print('-Results-'.center(70).replace(' ', '*').replace('-', ' '))
     print(results)
     print('*'*70)
-
-##--NLTK--
-
-
