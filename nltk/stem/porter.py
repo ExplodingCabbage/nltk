@@ -228,6 +228,9 @@ class PorterStemmer(StemmerI):
         # the number of 'VC' occurrences in Porter's reduced form in the
         # docstring above, which is in turn equivalent to `m`
         return cv_sequence.count('vc')
+        
+    def _has_positive_measure(self, stem):
+        return self._measure(stem) > 0
 
     def _contains_vowel(self, stem):
         """_contains_vowel(stem) is TRUE <=> stem contains a vowel"""
@@ -501,89 +504,83 @@ class PorterStemmer(StemmerI):
             (m>0) IVITI   ->  IVE       sensitiviti    ->  sensitive
             (m>0) BILITI  ->  BLE       sensibiliti    ->  sensible
         """
-        positive_measure = lambda stem: self._measure(stem) > 0
-        
+
         # --NEW--
         # Instead of applying the ALLI -> AL rule after 'bli' per the
         # published algorithm, instead we apply it first, and, if it
         # succeeds, run the result through step2 again.
         try:
-            stem = self._replace_suffix_if(word, 'alli', 'al', positive_measure)
+            stem = self._replace_suffix_if(
+                word,
+                'alli',
+                'al',
+                self._has_positive_measure
+            )
             return self._step2(stem)
         except _CannotReplaceSuffix:
             pass
         
         return self._apply_first_possible_rule(word, [
-            ('ational', 'ate', positive_measure),
-            ('tional', 'tion', positive_measure),
-            ('enci', 'ence', positive_measure),
-            ('anci', 'ance', positive_measure),
-            ('izer', 'ize', positive_measure),
+            ('ational', 'ate', self._has_positive_measure),
+            ('tional', 'tion', self._has_positive_measure),
+            ('enci', 'ence', self._has_positive_measure),
+            ('anci', 'ance', self._has_positive_measure),
+            ('izer', 'ize', self._has_positive_measure),
             
             # --DEPARTURE--
             # To match the published algorithm, replace "bli" with
             # "abli" and "ble" with "able"
-            ('bli', 'ble', positive_measure),
+            ('bli', 'ble', self._has_positive_measure),
             
             # -- NEW --
-            ('fulli', 'ful', positive_measure),
+            ('fulli', 'ful', self._has_positive_measure),
             
-            ('entli', 'ent', positive_measure),
-            ('eli', 'e', positive_measure),
-            ('ousli', 'ous', positive_measure),
-            ('ization', 'ize', positive_measure),
-            ('ation', 'ate', positive_measure),
-            ('ator', 'ate', positive_measure),
-            ('alism', 'al', positive_measure),
-            ('iveness', 'ive', positive_measure),
-            ('fulness', 'ful', positive_measure),
-            ('ousness', 'ous', positive_measure),
-            ('aliti', 'al', positive_measure),
-            ('iviti', 'ive', positive_measure),
-            ('biliti', 'ble', positive_measure),
+            ('entli', 'ent', self._has_positive_measure),
+            ('eli', 'e', self._has_positive_measure),
+            ('ousli', 'ous', self._has_positive_measure),
+            ('ization', 'ize', self._has_positive_measure),
+            ('ation', 'ate', self._has_positive_measure),
+            ('ator', 'ate', self._has_positive_measure),
+            ('alism', 'al', self._has_positive_measure),
+            ('iveness', 'ive', self._has_positive_measure),
+            ('fulness', 'ful', self._has_positive_measure),
+            ('ousness', 'ous', self._has_positive_measure),
+            ('aliti', 'al', self._has_positive_measure),
+            ('iviti', 'ive', self._has_positive_measure),
+            ('biliti', 'ble', self._has_positive_measure),
             
             # --DEPARTURE--
             # To match the published algorithm, delete this phrase
             # --NEW-- (Barry Wilkins)
             # To match the published algorithm, replace lambda below
-            # with just positive_measure
-            ("logi", "log", lambda stem: positive_measure(word[:-3])),
+            # with just self._has_positive_measure
+            ("logi", "log", lambda stem: self._has_positive_measure(word[:-3])),
         ])
 
     def _step3(self, word):
-        """step3() deals with -ic-, -full, -ness etc. similar strategy to step2."""
+        """Implements Step 3 from "An algorithm for suffix stripping"
+        
+        From the paper:
+        
+        Step 3
 
-        ch = word[-1]
-
-        if ch == 'e':
-            if word.endswith("icate"):
-                return word[:-3] if self._m(word, len(word)-6) else word
-            elif word.endswith("ative"):
-                return word[:-5] if self._m(word, len(word)-6) else word
-            elif word.endswith("alize"):
-                return word[:-3] if self._m(word, len(word)-6) else word
-            else:
-                return word
-        elif ch == 'i':
-            if word.endswith("iciti"):
-                return word[:-3] if self._m(word, len(word)-6) else word
-            else:
-                return word
-        elif ch == 'l':
-            if word.endswith("ical"):
-                return word[:-2] if self._m(word, len(word)-5) else word
-            elif word.endswith("ful"):
-                return word[:-3] if self._m(word, len(word)-4) else word
-            else:
-                return word
-        elif ch == 's':
-            if word.endswith("ness"):
-                return word[:-4] if self._m(word, len(word)-5) else word
-            else:
-                return word
-
-        else:
-            return word
+            (m>0) ICATE ->  IC              triplicate     ->  triplic
+            (m>0) ATIVE ->                  formative      ->  form
+            (m>0) ALIZE ->  AL              formalize      ->  formal
+            (m>0) ICITI ->  IC              electriciti    ->  electric
+            (m>0) ICAL  ->  IC              electrical     ->  electric
+            (m>0) FUL   ->                  hopeful        ->  hope
+            (m>0) NESS  ->                  goodness       ->  good
+        """
+        return self._apply_first_possible_rule(word, [
+            ('icate', 'ic', self._has_positive_measure),
+            ('ative', '', self._has_positive_measure),
+            ('alize', 'al', self._has_positive_measure),
+            ('iciti', 'ic', self._has_positive_measure),
+            ('ical', 'ic', self._has_positive_measure),
+            ('ful', '', self._has_positive_measure),
+            ('ness', '', self._has_positive_measure),
+        ])
 
     def _step4(self, word):
         """step4() takes off -ant, -ence etc., in context <c>vcvc<v>."""
