@@ -229,8 +229,8 @@ class PorterStemmer(StemmerI):
         # docstring above, which is in turn equivalent to `m`
         return cv_sequence.count('vc')
 
-    def _vowelinstem(self, stem):
-        """vowelinstem(stem) is TRUE <=> stem contains a vowel"""
+    def _contains_vowel(self, stem):
+        """_contains_vowel(stem) is TRUE <=> stem contains a vowel"""
         for i in range(len(stem)):
             if not self._cons(stem, i):
                 return True
@@ -401,8 +401,8 @@ class PorterStemmer(StemmerI):
             
         rule_2_or_3_succeeded = False
         for rule in [
-            ('ed', '', self._vowelinstem),  # (*v*) ED  ->   
-            ('ing', '', self._vowelinstem), # (*v*) ING ->
+            ('ed', '', self._contains_vowel),  # (*v*) ED  ->   
+            ('ing', '', self._contains_vowel), # (*v*) ING ->
         ]:
             try:
                 intermediate_stem = self._replace_suffix_if(word, *rule)
@@ -450,7 +450,7 @@ class PorterStemmer(StemmerI):
         'enjoy'. Step 1c is perhaps done too soon; but with this modification that
         no longer really matters.
 
-        Also, the removal of the vowelinstem(z) condition means that 'spy', 'fly',
+        Also, the removal of the contains_vowel(z) condition means that 'spy', 'fly',
         'try' ... stem to 'spi', 'fli', 'tri' and conflate with 'spied', 'tried',
         'flies' ...
         """
