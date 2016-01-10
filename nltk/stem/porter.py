@@ -636,19 +636,49 @@ class PorterStemmer(StemmerI):
             ('ive', '', measure_gt_1),
             ('ize', '', measure_gt_1),
         ])
+        
+    def _step5a(self, word):
+        """Implements Step 5a from "An algorithm for suffix stripping"
+        
+        From the paper:
+        
+        Step 5a
 
-    def _step5(self, word):
-        """step5() removes a final -e if m() > 1, and changes -ll to -l if
-        m() > 1.
+            (m>1) E     ->                  probate        ->  probat
+                                            rate           ->  rate
+            (m=1 and not *o) E ->           cease          ->  ceas
         """
-        if word[-1] == 'e':
-            a = self._m(word, len(word)-1)
-            if a > 1 or (a == 1 and not self._cvc(word, len(word)-2)):
-                word = word[:-1]
-        if word.endswith('ll') and self._m(word, len(word)-1) > 1:
-            word = word[:-1]
+        return self._apply_first_possible_rule(word, [
+            ('e', '', lambda stem: self._measure(stem) > 1),
+            (
+                'e',
+                '',
+                lambda stem: (
+                    self._measure(stem) == 1 and
+                    not self._ends_cvc(stem)
+                )
+            )
+        ])
 
-        return word
+    def _step5b(self, word):
+        """Implements Step 5a from "An algorithm for suffix stripping"
+        
+        From the paper:
+        
+        Step 5b
+
+            (m > 1 and *d and *L) -> single letter
+                                    controll       ->  control
+                                    roll           ->  roll
+        """
+        # The rule is expressed in an overcomplicated way in Porter's
+        # paper, but all it means it that double-l should become
+        # single-l. It could've been written more straightforwardly as:
+        #
+        #     (m > 1) LL -> L
+        return self._apply_first_possible_rule(word, [
+            ('ll', 'l', lambda stem: self._measure(stem) > 1)
+        ])
 
     def stem(self, word):
         stem = word.lower()
@@ -670,7 +700,8 @@ class PorterStemmer(StemmerI):
         stem = self._step2(stem)
         stem = self._step3(stem)
         stem = self._step4(stem)
-        stem = self._step5(stem)
+        stem = self._step5a(stem)
+        stem = self._step5b(stem)
         
         return stem
 
