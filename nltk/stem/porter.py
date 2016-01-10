@@ -469,96 +469,82 @@ class PorterStemmer(StemmerI):
             return word
 
     def _step2(self, word):
-        """step2() maps double suffices to single ones.
-        so -ization ( = -ize plus -ation) maps to -ize etc. note that the
-        string before the suffix must give m() > 0.
+        """Implements Step 2 from "An algorithm for suffix stripping"
+        
+        From the paper:
+        
+        Step 2
+
+            (m>0) ATIONAL ->  ATE       relational     ->  relate
+            (m>0) TIONAL  ->  TION      conditional    ->  condition
+                                        rational       ->  rational
+            (m>0) ENCI    ->  ENCE      valenci        ->  valence
+            (m>0) ANCI    ->  ANCE      hesitanci      ->  hesitance
+            (m>0) IZER    ->  IZE       digitizer      ->  digitize
+            (m>0) ABLI    ->  ABLE      conformabli    ->  conformable
+            (m>0) ALLI    ->  AL        radicalli      ->  radical
+            (m>0) ENTLI   ->  ENT       differentli    ->  different
+            (m>0) ELI     ->  E         vileli        - >  vile
+            (m>0) OUSLI   ->  OUS       analogousli    ->  analogous
+            (m>0) IZATION ->  IZE       vietnamization ->  vietnamize
+            (m>0) ATION   ->  ATE       predication    ->  predicate
+            (m>0) ATOR    ->  ATE       operator       ->  operate
+            (m>0) ALISM   ->  AL        feudalism      ->  feudal
+            (m>0) IVENESS ->  IVE       decisiveness   ->  decisive
+            (m>0) FULNESS ->  FUL       hopefulness    ->  hopeful
+            (m>0) OUSNESS ->  OUS       callousness    ->  callous
+            (m>0) ALITI   ->  AL        formaliti      ->  formal
+            (m>0) IVITI   ->  IVE       sensitiviti    ->  sensitive
+            (m>0) BILITI  ->  BLE       sensibiliti    ->  sensible
         """
-        if len(word) <= 1: # Only possible at this stage given unusual inputs to stem_word like 'oed'
-            return word
-
-        ch = word[-2]
-
-        if ch == 'a':
-            if word.endswith("ational"):
-                return word[:-7] + "ate" if self._m(word, len(word)-8) > 0 else word
-            elif word.endswith("tional"):
-                return word[:-2] if self._m(word, len(word)-7) > 0 else word
-            else:
-                return word
-        elif ch == 'c':
-            if word.endswith("enci"):
-                return word[:-4] + "ence" if self._m(word, len(word)-5) > 0 else word
-            elif word.endswith("anci"):
-                return word[:-4] + "ance" if self._m(word, len(word)-5) > 0 else word
-            else:
-                return word
-        elif ch == 'e':
-            if word.endswith("izer"):
-                return word[:-1] if self._m(word, len(word)-5) > 0 else word
-            else:
-                return word
-        elif ch == 'l':
-            if word.endswith("bli"):
-                return word[:-3] + "ble" if self._m(word, len(word)-4) > 0 else word # --DEPARTURE--
-            # To match the published algorithm, replace "bli" with "abli" and "ble" with "able"
-            elif word.endswith("alli"):
-                # --NEW--
-                if self._m(word, len(word)-5) > 0:
-                    word = word[:-2]
-                    return self._step2(word)
-                else:
-                    return word
-            elif word.endswith("fulli"):
-                return word[:-2] if self._m(word, len(word)-6) else word # --NEW--
-            elif word.endswith("entli"):
-                return word[:-2] if self._m(word, len(word)-6) else word
-            elif word.endswith("eli"):
-                return word[:-2] if self._m(word, len(word)-4) else word
-            elif word.endswith("ousli"):
-                return word[:-2] if self._m(word, len(word)-6) else word
-            else:
-                return word
-        elif ch == 'o':
-            if word.endswith("ization"):
-                return word[:-7] + "ize" if self._m(word, len(word)-8) else word
-            elif word.endswith("ation"):
-                return word[:-5] + "ate" if self._m(word, len(word)-6) else word
-            elif word.endswith("ator"):
-                return word[:-4] + "ate" if self._m(word, len(word)-5) else word
-            else:
-                return word
-        elif ch == 's':
-            if word.endswith("alism"):
-                return word[:-3] if self._m(word, len(word)-6) else word
-            elif word.endswith("ness"):
-                if word.endswith("iveness"):
-                    return word[:-4] if self._m(word, len(word)-8) else word
-                elif word.endswith("fulness"):
-                    return word[:-4] if self._m(word, len(word)-8) else word
-                elif word.endswith("ousness"):
-                    return word[:-4] if self._m(word, len(word)-8) else word
-                else:
-                    return word
-            else:
-                return word
-        elif ch == 't':
-            if word.endswith("aliti"):
-                return word[:-3] if self._m(word, len(word)-6) else word
-            elif word.endswith("iviti"):
-                return word[:-5] + "ive" if self._m(word, len(word)-6) else word
-            elif word.endswith("biliti"):
-                return word[:-6] + "ble" if self._m(word, len(word)-7) else word
-            else:
-                return word
-        elif ch == 'g': # --DEPARTURE--
-            if word.endswith("logi"):
-                return word[:-1] if self._m(word, len(word) - 4) else word # --NEW-- (Barry Wilkins)
-            # To match the published algorithm, pass len(word)-5 to _m instead of len(word)-4
-            else:
-                return word
-
-        else:
-            return word
+        positive_measure = lambda stem: self._measure(stem) > 0
+        
+        # --NEW--
+        # Instead of applying the ALLI -> AL rule after 'bli' per the
+        # published algorithm, instead we apply it first, and, if it
+        # succeeds, run the result through step2 again.
+        try:
+            stem = self._replace_suffix_if(word, 'alli', 'al', positive_measure)
+            return self._step2(stem)
+        except _CannotReplaceSuffix:
+            pass
+        
+        return self._apply_first_possible_rule(word, [
+            ('ational', 'ate', positive_measure),
+            ('tional', 'tion', positive_measure),
+            ('enci', 'ence', positive_measure),
+            ('anci', 'ance', positive_measure),
+            ('izer', 'ize', positive_measure),
+            
+            # --DEPARTURE--
+            # To match the published algorithm, replace "bli" with
+            # "abli" and "ble" with "able"
+            ('bli', 'ble', positive_measure),
+            
+            # -- NEW --
+            ('fulli', 'ful', positive_measure),
+            
+            ('entli', 'ent', positive_measure),
+            ('eli', 'e', positive_measure),
+            ('ousli', 'ous', positive_measure),
+            ('ization', 'ize', positive_measure),
+            ('ation', 'ate', positive_measure),
+            ('ator', 'ate', positive_measure),
+            ('alism', 'al', positive_measure),
+            ('iveness', 'ive', positive_measure),
+            ('fulness', 'ful', positive_measure),
+            ('ousness', 'ous', positive_measure),
+            ('aliti', 'al', positive_measure),
+            ('iviti', 'ive', positive_measure),
+            ('biliti', 'ble', positive_measure),
+            
+            # --DEPARTURE--
+            # To match the published algorithm, delete this phrase
+            # --NEW-- (Barry Wilkins)
+            # To match the published algorithm, replace lambda below
+            # with just positive_measure
+            ("logi", "log", lambda stem: positive_measure(word[:-3])),
+        ])
 
     def _step3(self, word):
         """step3() deals with -ic-, -full, -ness etc. similar strategy to step2."""
