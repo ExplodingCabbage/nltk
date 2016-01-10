@@ -432,7 +432,15 @@ class PorterStemmer(StemmerI):
         ])
     
     def _step1c(self, word):
-        """step1c() turns terminal y to i when there is another vowel in the stem.
+        """Implements Step 1c from "An algorithm for suffix stripping"
+        
+        From the paper:
+        
+        Step 1c
+
+            (*v*) Y -> I                    happy        ->  happi
+                                            sky          ->  sky
+        
         --NEW--: This has been modified from the original Porter algorithm so that y->i
         is only done when y is preceded by a consonant, but not if the stem
         is only a single consonant, i.e.
@@ -450,9 +458,14 @@ class PorterStemmer(StemmerI):
         'try' ... stem to 'spi', 'fli', 'tri' and conflate with 'spied', 'tried',
         'flies' ...
         """
-        if word[-1] == 'y' and len(word) > 2 and self._cons(word, len(word) - 2):
-            return word[:-1] + 'i'
-        else:
+        try:
+            return self._replace_suffix_if(
+                word,
+                'y',
+                'i',
+                lambda stem: len(word) > 2 and self._cons(word, len(word) - 2)
+            )
+        except _CannotReplaceSuffix:
             return word
 
     def _step2(self, word):
