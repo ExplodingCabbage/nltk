@@ -119,7 +119,7 @@ class PorterStemmer(StemmerI):
             "proceed" : ["proceed"],
             "exceed"  : ["exceed"],
             "succeed" : ["succeed"], # Hiranmay Ghosh
-            }
+        }
 
         self.pool = {}
         for key in irregular_forms:
