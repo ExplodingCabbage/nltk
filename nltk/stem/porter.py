@@ -579,89 +579,63 @@ class PorterStemmer(StemmerI):
         ])
 
     def _step4(self, word):
-        """step4() takes off -ant, -ence etc., in context <c>vcvc<v>."""
+        """Implements Step 4 from "An algorithm for suffix stripping"
+        
+        Step 4
 
-        if len(word) <= 1: # Only possible at this stage given unusual inputs to stem_word like 'oed'
-            return word
+            (m>1) AL    ->                  revival        ->  reviv
+            (m>1) ANCE  ->                  allowance      ->  allow
+            (m>1) ENCE  ->                  inference      ->  infer
+            (m>1) ER    ->                  airliner       ->  airlin
+            (m>1) IC    ->                  gyroscopic     ->  gyroscop
+            (m>1) ABLE  ->                  adjustable     ->  adjust
+            (m>1) IBLE  ->                  defensible     ->  defens
+            (m>1) ANT   ->                  irritant       ->  irrit
+            (m>1) EMENT ->                  replacement    ->  replac
+            (m>1) MENT  ->                  adjustment     ->  adjust
+            (m>1) ENT   ->                  dependent      ->  depend
+            (m>1 and (*S or *T)) ION ->     adoption       ->  adopt
+            (m>1) OU    ->                  homologou      ->  homolog
+            (m>1) ISM   ->                  communism      ->  commun
+            (m>1) ATE   ->                  activate       ->  activ
+            (m>1) ITI   ->                  angulariti     ->  angular
+            (m>1) OUS   ->                  homologous     ->  homolog
+            (m>1) IVE   ->                  effective      ->  effect
+            (m>1) IZE   ->                  bowdlerize     ->  bowdler
 
-        ch = word[-2]
-
-        if ch == 'a':
-            if word.endswith("al"):
-                return word[:-2] if self._m(word, len(word)-3) > 1 else word
-            else:
-                return word
-        elif ch == 'c':
-            if word.endswith("ance"):
-                return word[:-4] if self._m(word, len(word)-5) > 1 else word
-            elif word.endswith("ence"):
-                return word[:-4] if self._m(word, len(word)-5) > 1 else word
-            else:
-                return word
-        elif ch == 'e':
-            if word.endswith("er"):
-                return word[:-2] if self._m(word, len(word)-3) > 1 else word
-            else:
-                return word
-        elif ch == 'i':
-            if word.endswith("ic"):
-                return word[:-2] if self._m(word, len(word)-3) > 1 else word
-            else:
-                return word
-        elif ch == 'l':
-            if word.endswith("able"):
-                return word[:-4] if self._m(word, len(word)-5) > 1 else word
-            elif word.endswith("ible"):
-                return word[:-4] if self._m(word, len(word)-5) > 1 else word
-            else:
-                return word
-        elif ch == 'n':
-            if word.endswith("ant"):
-                return word[:-3] if self._m(word, len(word)-4) > 1 else word
-            elif word.endswith("ement"):
-                return word[:-5] if self._m(word, len(word)-6) > 1 else word
-            elif word.endswith("ment"):
-                return word[:-4] if self._m(word, len(word)-5) > 1 else word
-            elif word.endswith("ent"):
-                return word[:-3] if self._m(word, len(word)-4) > 1 else word
-            else:
-                return word
-        elif ch == 'o':
-            if word.endswith("sion") or word.endswith("tion"): # slightly different logic to all the other cases
-                return word[:-3] if self._m(word, len(word)-4) > 1 else word
-            elif word.endswith("ou"):
-                return word[:-2] if self._m(word, len(word)-3) > 1 else word
-            else:
-                return word
-        elif ch == 's':
-            if word.endswith("ism"):
-                return word[:-3] if self._m(word, len(word)-4) > 1 else word
-            else:
-                return word
-        elif ch == 't':
-            if word.endswith("ate"):
-                return word[:-3] if self._m(word, len(word)-4) > 1 else word
-            elif word.endswith("iti"):
-                return word[:-3] if self._m(word, len(word)-4) > 1 else word
-            else:
-                return word
-        elif ch == 'u':
-            if word.endswith("ous"):
-                return word[:-3] if self._m(word, len(word)-4) > 1 else word
-            else:
-                return word
-        elif ch == 'v':
-            if word.endswith("ive"):
-                return word[:-3] if self._m(word, len(word)-4) > 1 else word
-            else:
-                return word
-        elif ch == 'z':
-            if word.endswith("ize"):
-                return word[:-3] if self._m(word, len(word)-4) > 1 else word
-            else:
-                return word
-        else:
-            return word
+        The suffixes are now removed. All that remains is a little
+        tidying up.
+        """
+        measure_gt_1 = lambda stem: self._measure(stem) > 1
+        
+        return self._apply_first_possible_rule(word, [
+            ('al', '', measure_gt_1),
+            ('ance', '', measure_gt_1),
+            ('ence', '', measure_gt_1),
+            ('er', '', measure_gt_1),
+            ('ic', '', measure_gt_1),
+            ('able', '', measure_gt_1),
+            ('ible', '', measure_gt_1),
+            ('ant', '', measure_gt_1),
+            ('ement', '', measure_gt_1),
+            ('ment', '', measure_gt_1),
+            ('ent', '', measure_gt_1),
+            
+            # (m>1 and (*S or *T)) ION -> 
+            (
+                'ion',
+                '',
+                lambda stem: self._measure(stem) > 1 and stem[-1] in ('s', 't')
+            ),
+            
+            ('ou', '', measure_gt_1),
+            ('ism', '', measure_gt_1),
+            ('ate', '', measure_gt_1),
+            ('iti', '', measure_gt_1),
+            ('ous', '', measure_gt_1),
+            ('ive', '', measure_gt_1),
+            ('ize', '', measure_gt_1),
+        ])
 
     def _step5(self, word):
         """step5() removes a final -e if m() > 1, and changes -ll to -l if
