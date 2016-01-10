@@ -59,6 +59,9 @@ import re
 from nltk.stem.api import StemmerI
 from nltk.compat import python_2_unicode_compatible
 
+class _CannotReplaceSuffix(Exception):
+    pass
+
 @python_2_unicode_compatible
 class PorterStemmer(StemmerI):
 
@@ -174,6 +177,57 @@ class PorterStemmer(StemmerI):
                     break
                 i = i + 1
             i = i + 1
+            
+    def _measure(self, stem):
+        """Returns the 'measure' of stem, per definition in the paper
+        
+        From the paper:
+        
+            A consonant will be denoted by c, a vowel by v. A list
+            ccc... of length greater than 0 will be denoted by C, and a
+            list vvv... of length greater than 0 will be denoted by V.
+            Any word, or part of a word, therefore has one of the four
+            forms:
+
+                CVCV ... C
+                CVCV ... V
+                VCVC ... C
+                VCVC ... V
+                
+            These may all be represented by the single form
+            
+                [C]VCVC ... [V]
+                
+            where the square brackets denote arbitrary presence of their
+            contents. Using (VC){m} to denote VC repeated m times, this
+            may again be written as
+
+                [C](VC){m}[V].
+
+            m will be called the \measure\ of any word or word part when
+            represented in this form. The case m = 0 covers the null
+            word. Here are some examples:
+
+                m=0    TR,  EE,  TREE,  Y,  BY.
+                m=1    TROUBLE,  OATS,  TREES,  IVY.
+                m=2    TROUBLES,  PRIVATE,  OATEN,  ORRERY.
+        """
+        cv_sequence = ''
+        
+        # Construct a string of 'c's and 'v's representing whether each
+        # character in `stem` is a consonsant or a vowel.
+        # e.g. 'falafel' becomes 'cvcvcvc',
+        #      'architecture' becomes 'vcccvcvccvcv'
+        for i in range(len(stem)):
+            if self._cons(stem, i):
+                cv_sequence += 'c'
+            else:
+                cv_sequence += 'v'
+                
+        # Count the number of 'vc' occurences, which is equivalent to
+        # the number of 'VC' occurrences in Porter's reduced form in the
+        # docstring above, which is in turn equivalent to `m`
+        return cv_sequence.count('vc')
 
     def _vowelinstem(self, stem):
         """vowelinstem(stem) is TRUE <=> stem contains a vowel"""
@@ -189,6 +243,26 @@ class PorterStemmer(StemmerI):
         if (word[-1] != word[-2]):
             return False
         return self._cons(word, len(word)-1)
+
+    def _ends_cvc(self, word):
+        """Implements condition *o from the paper
+        
+        From the paper:
+        
+            *o  - the stem ends cvc, where the second c is not W, X or Y
+                  (e.g. -WIL, -HOP).
+        """
+        return (
+            len(word) >= 3 and
+            self._cons(word, len(word) - 3) and
+            not self._cons(word, len(word) - 2) and
+            self._cons(word, len(word) - 1) and
+            word[-1] not in ('w', 'x', 'y')
+        ) or ( # -- NLTK -- 
+            len(word) == 2 and
+            not self._cons(word, 0) and
+            self._cons(word, 1)
+        )
 
     def _cvc(self, word, i):
         """cvc(i) is TRUE <=>
@@ -212,74 +286,155 @@ class PorterStemmer(StemmerI):
             return False
 
         return True
+        
+    def _replace_suffix(self, word, suffix, replacement):
+        """Replaces `suffix` of `word` with `replacement"""
+        assert word.endswith(suffix), "Given word doesn't end with given suffix"
+        return word[:-len(suffix)] + replacement
 
-    def _step1ab(self, word):
-        """step1ab() gets rid of plurals and -ed or -ing. e.g.
-
-           caresses  ->  caress
-           ponies    ->  poni
-           sties     ->  sti
-           tie       ->  tie        (--NEW--: see below)
-           caress    ->  caress
-           cats      ->  cat
-
-           feed      ->  feed
-           agreed    ->  agree
-           disabled  ->  disable
-
-           matting   ->  mat
-           mating    ->  mate
-           meeting   ->  meet
-           milling   ->  mill
-           messing   ->  mess
-
-           meetings  ->  meet
+    def _replace_suffix_if(self, word, suffix, replacement, condition):
+        """If `condition`, replace suffix with replacement, else raise
+        
+        `condition` should be a lambda that takes the word and stem as
+        arguments and returns True or False.
         """
-        if word[-1] == 's':
-            if word.endswith("sses"):
-                word = word[:-2]
-            elif word.endswith("ies"):
-                if len(word) == 4:
-                    word = word[:-1]
-                # this line extends the original algorithm, so that
-                # 'flies'->'fli' but 'dies'->'die' etc
-                else:
-                    word = word[:-2]
-            elif word[-2] != 's':
-                word = word[:-1]
-
-        ed_or_ing_trimmed = False
-        if word.endswith("ied"):
-            if len(word) == 4:
-                word = word[:-1]
+        if not word.endswith(suffix):
+            raise _CannotReplaceSuffix("word does not end with suffix")
+        else:
+            stem = self._replace_suffix(word, suffix, replacement)
+            if condition is None or condition(stem):
+                return stem
             else:
-                word = word[:-2]
-        # this line extends the original algorithm, so that
-        # 'spied'->'spi' but 'died'->'die' etc
-
-        elif word.endswith("eed"):
-            if self._m(word, len(word)-4) > 0:
-                word = word[:-1]
-
-
-        elif word.endswith("ed") and self._vowelinstem(word[:-2]):
-            word = word[:-2]
-            ed_or_ing_trimmed = True
-        elif word.endswith("ing") and self._vowelinstem(word[:-3]):
-            word = word[:-3]
-            ed_or_ing_trimmed = True
-
-        if ed_or_ing_trimmed:
-            if word.endswith("at") or word.endswith("bl") or word.endswith("iz"):
-                word += 'e'
-            elif self._doublec(word):
-                if word[-1] not in ['l', 's', 'z']:
-                    word = word[:-1]
-            elif (self._m(word, len(word)-1) == 1 and self._cvc(word, len(word)-1)):
-                word += 'e'
-
+                raise _CannotReplaceSuffix("condition not met")
+                
+    def _apply_first_possible_rule(self, word, rules):
+        """Applies the first applicable suffix-removal rule to the word
+        
+        Takes a word and a list of suffix-removal rules represented as
+        3-tuples, with the first element being the suffix to remove,
+        the second element being the string to replace it with, and the
+        final element being the condition for the rule to be applicable,
+        or None if the rule is unconditional.
+        """
+        for rule in rules:
+            try:
+                return self._replace_suffix_if(word, *rule)
+            except _CannotReplaceSuffix:
+                pass
+                
         return word
+        
+    def _step1a(self, word):
+        """Implements Step 1a from "An algorithm for suffix stripping"
+        
+        From the paper:
+            
+            SSES -> SS                         caresses  ->  caress
+            IES  -> I                          ponies    ->  poni
+                                               ties      ->  ti
+            SS   -> SS                         caress    ->  caress
+            S    ->                            cats      ->  cat
+        """
+        return self._apply_first_possible_rule(word, [
+            ('sses', 'ss', None), # SSES -> SS
+            
+            # --NLTK--
+            # this line extends the original algorithm, so that
+            # 'flies'->'fli' but 'dies'->'die' etc
+            ('ies', 'ie', lambda stem: len(word) == 4),
+            
+            ('ies', 'i', None),   # IES  -> I
+            ('ss', 'ss', None),   # SS   -> SS
+            ('s', '', None),      # S    ->
+        ])
+        
+    def _step1b(self, word):
+        """Implements Step 1b from "An algorithm for suffix stripping"
+        
+        From the paper:
+        
+            (m>0) EED -> EE                    feed      ->  feed
+                                               agreed    ->  agree
+            (*v*) ED  ->                       plastered ->  plaster
+                                               bled      ->  bled
+            (*v*) ING ->                       motoring  ->  motor
+                                               sing      ->  sing
+                                               
+        If the second or third of the rules in Step 1b is successful, the following
+        is done:
 
+            AT -> ATE                       conflat(ed)  ->  conflate
+            BL -> BLE                       troubl(ed)   ->  trouble
+            IZ -> IZE                       siz(ed)      ->  size
+            (*d and not (*L or *S or *Z))
+               -> single letter
+                                            hopp(ing)    ->  hop
+                                            tann(ed)     ->  tan
+                                            fall(ing)    ->  fall
+                                            hiss(ing)    ->  hiss
+                                            fizz(ed)     ->  fizz
+            (m=1 and *o) -> E               fail(ing)    ->  fail
+                                            fil(ing)     ->  file
+
+        The rule to map to a single letter causes the removal of one of the double
+        letter pair. The -E is put back on -AT, -BL and -IZ, so that the suffixes
+        -ATE, -BLE and -IZE can be recognised later. This E may be removed in step
+        4.
+        """
+        # --NLTK-- 
+        # this block extends the original algorithm, so that
+        # 'spied'->'spi' but 'died'->'die' etc
+        try:
+            return self._replace_suffix_if(
+                word, 'ied', 'ie', lambda stem: len(word) == 4
+            )
+        except _CannotReplaceSuffix:
+            pass
+        
+        try:
+            # (m>0) EED -> EE
+            return self._replace_suffix_if(
+                word, 'eed', 'ee', lambda stem: self._measure(stem) > 0
+            )
+        except _CannotReplaceSuffix:
+            pass
+            
+        rule_2_or_3_succeeded = False
+        for rule in [
+            ('ed', '', self._vowelinstem),  # (*v*) ED  ->   
+            ('ing', '', self._vowelinstem), # (*v*) ING ->
+        ]:
+            try:
+                intermediate_stem = self._replace_suffix_if(word, *rule)
+                rule_2_or_3_succeeded = True
+                break
+            except _CannotReplaceSuffix:
+                pass
+                
+        if not rule_2_or_3_succeeded:
+            return word
+        
+        final_letter = intermediate_stem[-1]
+        return self._apply_first_possible_rule(intermediate_stem, [
+            ('at', 'ate', None), # AT -> ATE
+            ('bl', 'ble', None), # BL -> BLE
+            ('iz', 'ize', None), # IZ -> IZE
+            # (*d and not (*L or *S or *Z))
+            # -> single letter
+            (
+                final_letter*2,
+                final_letter,
+                lambda stem: final_letter not in ('l', 's', 'z')
+            ),
+            # (m=1 and *o) -> E
+            (
+                '',
+                'e',
+                lambda stem: (self._measure(stem) == 1 and
+                              self._ends_cvc(stem))
+            ),
+        ])
+    
     def _step1c(self, word):
         """step1c() turns terminal y to i when there is another vowel in the stem.
         --NEW--: This has been modified from the original Porter algorithm so that y->i
@@ -542,8 +697,9 @@ class PorterStemmer(StemmerI):
         # stemming process, although no mention is made of this in the
         # published algorithm. Remove the line to match the published
         # algorithm.
-        
-        stem = self._step1ab(stem)
+
+        stem = self._step1a(stem)
+        stem = self._step1b(stem)
         stem = self._step1c(stem)
         stem = self._step2(stem)
         stem = self._step3(stem)
