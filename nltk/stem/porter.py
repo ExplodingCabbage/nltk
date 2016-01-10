@@ -138,46 +138,7 @@ class PorterStemmer(StemmerI):
             else:
                 return (not self._cons(word, i - 1))
         return True
-
-    def _m(self, word, j):
-        """m() measures the number of consonant sequences between k0 and j.
-        if c is a consonant sequence and v a vowel sequence, and <..>
-        indicates arbitrary presence,
-
-           <c><v>       gives 0
-           <c>vc<v>     gives 1
-           <c>vcvc<v>   gives 2
-           <c>vcvcvc<v> gives 3
-           ....
-        """
-        n = 0
-        i = 0
-        while True:
-            if i > j:
-                return n
-            if not self._cons(word, i):
-                break
-            i = i + 1
-        i = i + 1
-
-        while True:
-            while True:
-                if i > j:
-                    return n
-                if self._cons(word, i):
-                    break
-                i = i + 1
-            i = i + 1
-            n = n + 1
-
-            while True:
-                if i > j:
-                    return n
-                if not self._cons(word, i):
-                    break
-                i = i + 1
-            i = i + 1
-            
+        
     def _measure(self, stem):
         """Returns the 'measure' of stem, per definition in the paper
         
@@ -239,14 +200,6 @@ class PorterStemmer(StemmerI):
                 return True
         return False
 
-    def _doublec(self, word):
-        """doublec(word) is TRUE <=> word ends with a double consonant"""
-        if len(word) < 2:
-            return False
-        if (word[-1] != word[-2]):
-            return False
-        return self._cons(word, len(word)-1)
-
     def _ends_cvc(self, word):
         """Implements condition *o from the paper
         
@@ -266,29 +219,6 @@ class PorterStemmer(StemmerI):
             not self._cons(word, 0) and
             self._cons(word, 1)
         )
-
-    def _cvc(self, word, i):
-        """cvc(i) is TRUE <=>
-
-        a) ( --NEW--) i == 1, and word[0] word[1] is vowel consonant, or
-
-        b) word[i - 2], word[i - 1], word[i] has the form consonant -
-           vowel - consonant and also if the second c is not w, x or y. this
-           is used when trying to restore an e at the end of a short word.
-           e.g.
-
-               cav(e), lov(e), hop(e), crim(e), but
-               snow, box, tray.
-        """
-        if i == 0: return False  # i == 0 never happens perhaps
-        if i == 1: return (not self._cons(word, 0) and self._cons(word, 1))
-        if not self._cons(word, i) or self._cons(word, i-1) or not self._cons(word, i-2): return False
-
-        ch = word[i]
-        if ch == 'w' or ch == 'x' or ch == 'y':
-            return False
-
-        return True
         
     def _replace_suffix(self, word, suffix, replacement):
         """Replaces `suffix` of `word` with `replacement"""
