@@ -189,3 +189,11 @@
 - Sergio Oller
 - Will Monroe
 - Elijah Rippeth
+
+## Others whose work we've taken and included in NLTK, but who didn't directly contribute it:
+### Contributors to the Porter Stemmer
+- Martin Porter
+- Vivake Gupta
+- Barry Wilkins
+- Hiranmay Ghosh
+- Chris Emerson
