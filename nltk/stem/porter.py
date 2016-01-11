@@ -1,57 +1,25 @@
-# Additional modifications were made to incorporate this module into
-# NLTK.  All such modifications are marked with "--NLTK--".  The NLTK
-# version of this module is maintained by NLTK developers,
-# and is available via http://nltk.org/
-
 """
 Porter Stemmer
 
-This is the Porter stemming algorithm, ported to Python from the
-version coded up in ANSI C by the author. It follows the algorithm
+This is the Porter stemming algorithm. It follows the algorithm
 presented in
 
 Porter, M. "An algorithm for suffix stripping." Program 14.3 (1980): 130-137.
 
-only differing from it at the points marked --DEPARTURE-- and --NEW--
-below.
+with some optional deviations that can be turned on or off with the
+`mode` argument to the constructor.
 
-For a more faithful version of the Porter algorithm, see
+Martin Porter, the algorithm's inventor, maintains a web page about the
+algorithm at
 
     http://www.tartarus.org/~martin/PorterStemmer/
 
-Later additions:
-
-   June 2000
-
-   The 'l' of the 'logi' -> 'log' rule is put with the stem, so that
-   short stems like 'geo' 'theo' etc work like 'archaeo' 'philo' etc.
-
-   This follows a suggestion of Barry Wilkins, research student at
-   Birmingham.
-
-
-   February 2000
-
-   the cvc test for not dropping final -e now looks after vc at the
-   beginning of a word, so are, eve, ice, ore, use keep final -e. In this
-   test c is any consonant, including w, x and y. This extension was
-   suggested by Chris Emerson.
-
-   -fully    -> -ful   treated like  -fulness -> -ful, and
-   -tionally -> -tion  treated like  -tional  -> -tion
-
-   both in Step 2. These were suggested by Hiranmay Ghosh, of New Delhi.
-
-   Invariants proceed, succeed, exceed. Also suggested by Hiranmay Ghosh.
-
-Additional modifications were made to incorperate this module into
-nltk.  All such modifications are marked with \"--NLTK--\".
+which includes another Python implementation and other implementations
+in many languages.
 """
 
 from __future__ import print_function, unicode_literals
 
-## --NLTK--
-## Declare this module's documentation format.
 __docformat__ = 'plaintext'
 
 import re
@@ -64,67 +32,85 @@ class _CannotReplaceSuffix(Exception):
 
 @python_2_unicode_compatible
 class PorterStemmer(StemmerI):
-
-    ## --NLTK--
-    ## Add a module docstring
     """
     A word stemmer based on the Porter stemming algorithm.
 
-        Porter, M. \"An algorithm for suffix stripping.\"
+        Porter, M. "An algorithm for suffix stripping."
         Program 14.3 (1980): 130-137.
+        
+    See http://www.tartarus.org/~martin/PorterStemmer/ for the homepage
+    of the algorithm.
+        
+    Martin Porter has endorsed several modifications to the Porter
+    algorithm since writing his original paper, and those extensions are
+    included in the implementations on his website. Additionally, others
+    have proposed further improvements to the algorithm, including NLTK
+    contributors. There are thus three modes that can be selected by
+    passing the appropriate constant to the class constructor's `mode`
+    attribute:
 
-    A few minor modifications have been made to Porter's basic
-    algorithm.  See the source code of this module for more
-    information.
-
-    The Porter Stemmer requires that all tokens have string types.
+        PorterStemmer.ORIGINAL_ALGORITHM
+        - Implementation that is faithful to the original paper.
+        
+        PorterStemmer.MARTIN_EXTENSIONS
+        - Implementation that only uses the modifications to the
+          algorithm that are included in the implementations on Martin
+          Porter's website. He has declared Porter frozen, so the
+          behaviour of those implementations should never change.
+          
+        PorterStemmer.NLTK_EXTENSIONS (default)
+        - Implementation that includes further improvements devised by
+          NLTK contributors or taken from other modified implementations
+          found on the web.
+          
+    For the best stemming, you should use the default NLTK_EXTENSIONS
+    version. However, if you need to get the same results as either the
+    original algorithm or one of Martin Porter's hosted versions for
+    compability reasons, you can use one of the other modes instead.
     """
+    
+    # Modes the Stemmer can be instantiated in
+    NLTK_EXTENSIONS = 'NLTK_EXTENSIONS'
+    MARTIN_EXTENSIONS = 'MARTIN_EXTENSIONS'
+    ORIGINAL_ALGORITHM = 'ORIGINAL_ALGORITHM'
 
-    # The main part of the stemming algorithm starts here.
-    # Note that only lower case sequences are stemmed. Forcing to lower case
-    # should be done before stem(...) is called.
+    def __init__(self, mode=NLTK_EXTENSIONS):
+        if mode not in (
+            self.NLTK_EXTENSIONS,
+            self.MARTIN_EXTENSIONS,
+            self.ORIGINAL_ALGORITHM
+        ):
+            raise ValueError(
+                "Mode must be one of PorterStemmer.NLTK_EXTENSIONS, "
+                "PorterStemmer.MARTIN_EXTENSIONS, or "
+                "PorterStemmer.ORIGINAL_ALGORITHM"
+            )
+        
+        self.mode = mode
+        
+        if self.mode == self.NLTK_EXTENSIONS:
+            # This is a table of irregular forms. It is quite short,
+            # but still reflects the errors actually drawn to Martin
+            # Porter's attention over a 20 year period!
+            irregular_forms = {
+                "sky" :     ["sky", "skies"],
+                "die" :     ["dying"],
+                "lie" :     ["lying"],
+                "tie" :     ["tying"],
+                "news" :    ["news"],
+                "inning" :  ["innings", "inning"],
+                "outing" :  ["outings", "outing"],
+                "canning" : ["cannings", "canning"],
+                "howe" :    ["howe"],
+                "proceed" : ["proceed"],
+                "exceed"  : ["exceed"],
+                "succeed" : ["succeed"],
+            }
 
-    def __init__(self):
-
-        ## --NEW--
-        ## This is a table of irregular forms. It is quite short, but still
-        ## reflects the errors actually drawn to Martin Porter's attention over
-        ## a 20 year period!
-        ##
-        ## Extend it as necessary.
-        ##
-        ## The form of the table is:
-        ##  {
-        ##  "p1" : ["s11","s12","s13", ... ],
-        ##  "p2" : ["s21","s22","s23", ... ],
-        ##  ...
-        ##  "pn" : ["sn1","sn2","sn3", ... ]
-        ##  }
-        ##
-        ## String sij is mapped to paradigm form pi, and the main stemming
-        ## process is then bypassed.
-
-        irregular_forms = {
-            "sky" :     ["sky", "skies"],
-            "die" :     ["dying"],
-            "lie" :     ["lying"],
-            "tie" :     ["tying"],
-            "news" :    ["news"],
-            "inning" :  ["innings", "inning"],
-            "outing" :  ["outings", "outing"],
-            "canning" : ["cannings", "canning"],
-            "howe" :    ["howe"],
-
-            # --NEW--
-            "proceed" : ["proceed"],
-            "exceed"  : ["exceed"],
-            "succeed" : ["succeed"], # Hiranmay Ghosh
-        }
-
-        self.pool = {}
-        for key in irregular_forms:
-            for val in irregular_forms[key]:
-                self.pool[val] = key
+            self.pool = {}
+            for key in irregular_forms:
+                for val in irregular_forms[key]:
+                    self.pool[val] = key
 
         self.vowels = frozenset(['a', 'e', 'i', 'o', 'u'])
 
@@ -267,10 +253,14 @@ class PorterStemmer(StemmerI):
         return self._apply_first_possible_rule(word, [
             ('sses', 'ss', None), # SSES -> SS
             
-            # --NLTK--
-            # this line extends the original algorithm, so that
-            # 'flies'->'fli' but 'dies'->'die' etc
-            ('ies', 'ie', lambda stem: len(word) == 4),
+            # this NLTK-only rule extends the original algorithm, so
+            # that 'flies'->'fli' but 'dies'->'die' etc
+            (
+                'ies',
+                'ie',
+                lambda stem: (self.mode == self.NLTK_EXTENSIONS and
+                              len(word) == 4)
+            ),
             
             ('ies', 'i', None),   # IES  -> I
             ('ss', 'ss', None),   # SS   -> SS
@@ -310,15 +300,15 @@ class PorterStemmer(StemmerI):
         -ATE, -BLE and -IZE can be recognised later. This E may be removed in step
         4.
         """
-        # --NLTK-- 
-        # this block extends the original algorithm, so that
+        # this NLTK-only block extends the original algorithm, so that
         # 'spied'->'spi' but 'died'->'die' etc
-        try:
-            return self._replace_suffix_if(
-                word, 'ied', 'ie', lambda stem: len(word) == 4
-            )
-        except _CannotReplaceSuffix:
-            pass
+        if self.mode == self.NLTK_EXTENSIONS:
+            try:
+                return self._replace_suffix_if(
+                    word, 'ied', 'ie', lambda stem: len(word) == 4
+                )
+            except _CannotReplaceSuffix:
+                pass
         
         try:
             # (m>0) EED -> EE
@@ -373,30 +363,38 @@ class PorterStemmer(StemmerI):
 
             (*v*) Y -> I                    happy        ->  happi
                                             sky          ->  sky
-        
-        --NEW--: This has been modified from the original Porter algorithm so that y->i
-        is only done when y is preceded by a consonant, but not if the stem
-        is only a single consonant, i.e.
-
-           (*c and not c) Y -> I
-
-        So 'happy' -> 'happi', but
-          'enjoy' -> 'enjoy'  etc
-
-        This is a much better rule. Formerly 'enjoy'->'enjoi' and 'enjoyment'->
-        'enjoy'. Step 1c is perhaps done too soon; but with this modification that
-        no longer really matters.
-
-        Also, the removal of the contains_vowel(z) condition means that 'spy', 'fly',
-        'try' ... stem to 'spi', 'fli', 'tri' and conflate with 'spied', 'tried',
-        'flies' ...
         """
+        def nltk_condition(stem):
+            """
+            This has been modified from the original Porter algorithm so
+            that y->i is only done when y is preceded by a consonant,
+            but not if the stem is only a single consonant, i.e.
+
+               (*c and not c) Y -> I
+
+            So 'happy' -> 'happi', but
+               'enjoy' -> 'enjoy'  etc
+
+            This is a much better rule. Formerly 'enjoy'->'enjoi' and
+            'enjoyment'->'enjoy'. Step 1c is perhaps done too soon; but
+            with this modification that no longer really matters.
+
+            Also, the removal of the contains_vowel(z) condition means
+            that 'spy', 'fly', 'try' ... stem to 'spi', 'fli', 'tri' and
+            conflate with 'spied', 'tried', 'flies' ...
+            """
+            return len(stem) > 1 and self._cons(stem, len(stem) - 1)
+        
+        def original_condition(stem):
+            return self._contains_vowel(stem)
+        
         try:
             return self._replace_suffix_if(
                 word,
                 'y',
                 'i',
-                lambda stem: len(word) > 2 and self._cons(word, len(word) - 2)
+                nltk_condition if self.mode == self.NLTK_EXTENSIONS
+                               else original_condition
             )
         except _CannotReplaceSuffix:
             return word
@@ -431,36 +429,34 @@ class PorterStemmer(StemmerI):
             (m>0) BILITI  ->  BLE       sensibiliti    ->  sensible
         """
 
-        # --NEW--
-        # Instead of applying the ALLI -> AL rule after 'bli' per the
-        # published algorithm, instead we apply it first, and, if it
-        # succeeds, run the result through step2 again.
-        try:
-            stem = self._replace_suffix_if(
-                word,
-                'alli',
-                'al',
-                self._has_positive_measure
-            )
-            return self._step2(stem)
-        except _CannotReplaceSuffix:
-            pass
+        if self.mode == self.NLTK_EXTENSIONS:
+            # Instead of applying the ALLI -> AL rule after '(a)bli' per
+            # the published algorithm, instead we apply it first, and,
+            # if it succeeds, run the result through step2 again.
+            try:
+                stem = self._replace_suffix_if(
+                    word,
+                    'alli',
+                    'al',
+                    self._has_positive_measure
+                )
+                return self._step2(stem)
+            except _CannotReplaceSuffix:
+                pass
         
-        return self._apply_first_possible_rule(word, [
+        bli_rule = ('bli', 'ble', self._has_positive_measure)
+        abli_rule = ('abli', 'able', self._has_positive_measure)
+        
+        rules = [
             ('ational', 'ate', self._has_positive_measure),
             ('tional', 'tion', self._has_positive_measure),
             ('enci', 'ence', self._has_positive_measure),
             ('anci', 'ance', self._has_positive_measure),
             ('izer', 'ize', self._has_positive_measure),
             
-            # --DEPARTURE--
-            # To match the published algorithm, replace "bli" with
-            # "abli" and "ble" with "able"
-            ('bli', 'ble', self._has_positive_measure),
+            abli_rule if self.mode == self.ORIGINAL_ALGORITHM else bli_rule,
             
-            # -- NEW --
-            ('fulli', 'ful', self._has_positive_measure),
-            
+            ('alli', 'al', self._has_positive_measure),
             ('entli', 'ent', self._has_positive_measure),
             ('eli', 'e', self._has_positive_measure),
             ('ousli', 'ous', self._has_positive_measure),
@@ -474,14 +470,28 @@ class PorterStemmer(StemmerI):
             ('aliti', 'al', self._has_positive_measure),
             ('iviti', 'ive', self._has_positive_measure),
             ('biliti', 'ble', self._has_positive_measure),
+        ]
+        
+        if self.mode == self.NLTK_EXTENSIONS:
+            rules.append(
+                ('fulli', 'ful', self._has_positive_measure)
+            )
             
-            # --DEPARTURE--
-            # To match the published algorithm, delete this phrase
-            # --NEW-- (Barry Wilkins)
-            # To match the published algorithm, replace lambda below
-            # with just self._has_positive_measure
-            ("logi", "log", lambda stem: self._has_positive_measure(word[:-3])),
-        ])
+           # The 'l' of the 'logi' -> 'log' rule is put with the stem,
+           # so that short stems like 'geo' 'theo' etc work like
+           # 'archaeo' 'philo' etc.
+            rules.append((
+                "logi",
+                "log",
+                lambda stem: self._has_positive_measure(word[:-3])
+            ))
+
+        if self.mode == self.MARTIN_EXTENSIONS:
+            rules.append(
+                ("logi", "log", self._has_positive_measure)
+            )
+        
+        return self._apply_first_possible_rule(word, rules)
 
     def _step3(self, word):
         """Implements Step 3 from "An algorithm for suffix stripping"
@@ -613,16 +623,14 @@ class PorterStemmer(StemmerI):
     def stem(self, word):
         stem = word.lower()
         
-        # --NLTK--
-        if word in self.pool:
+        if self.mode == self.NLTK_EXTENSIONS and word in self.pool:
             return self.pool[word]
 
-        if len(word) <= 2:
-            return word # --DEPARTURE--
-        # With this line, strings of length 1 or 2 don't go through the
-        # stemming process, although no mention is made of this in the
-        # published algorithm. Remove the line to match the published
-        # algorithm.
+        if self.mode != self.ORIGINAL_ALGORITHM and len(word) <= 2:
+            # With this line, strings of length 1 or 2 don't go through
+            # the stemming process, although no mention is made of this
+            # in the published algorithm.
+            return word
 
         stem = self._step1a(stem)
         stem = self._step1b(stem)
