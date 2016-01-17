@@ -830,7 +830,7 @@ apish
 apollinem
 apollo
 apollodoru
-apolog
+apologi
 apoplex
 apoplexi
 apostl
@@ -1061,7 +1061,7 @@ artoi
 art
 artu
 arviragu
-as
+a
 asaph
 ascaniu
 ascend
@@ -1125,8 +1125,8 @@ assai
 assembl
 assembl
 assembl
-assembl
-assembl
+assembli
+assembli
 assent
 ass
 assez
@@ -1341,7 +1341,7 @@ awri
 ax
 axl
 axletre
-ay
+ai
 ay
 ayez
 ayli
@@ -4581,7 +4581,7 @@ corrupt
 corrupt
 corrupt
 corrupt
-corrupt
+corruptibli
 corrupt
 corrupt
 corruptli
@@ -6056,7 +6056,7 @@ dissembl
 dissembl
 dissembl
 dissembl
-dissembl
+dissembli
 dissens
 dissens
 dissenti
@@ -6491,7 +6491,7 @@ duli
 dumain
 dumb
 dumb
-dumbl
+dumbli
 dumb
 dump
 dump
@@ -7227,7 +7227,7 @@ erweigh
 erwhelm
 erwhelm
 erworn
-es
+e
 escalu
 escap
 escap
@@ -7553,7 +7553,7 @@ extrem
 exuent
 exult
 exult
-ey
+ei
 eya
 eyas
 ey
@@ -8305,7 +8305,7 @@ forc
 forceless
 forc
 forcibl
-forcibl
+forcibli
 forc
 ford
 fordid
@@ -10154,7 +10154,7 @@ hornpip
 horn
 horolog
 horribl
-horribl
+horribli
 horrid
 horrid
 horridli
@@ -10263,7 +10263,7 @@ humbler
 humbl
 humblest
 humbl
-humbl
+humbli
 hume
 humh
 humid
@@ -10378,7 +10378,7 @@ if
 if
 igni
 ignobl
-ignobl
+ignobli
 ignomini
 ignomini
 ignomi
@@ -10701,7 +10701,7 @@ inexecr
 inexor
 inexplic
 infal
-infal
+infallibli
 infamon
 infam
 infami
@@ -11083,7 +11083,7 @@ irremov
 irrepar
 irresolut
 irrevoc
-is
+i
 isabel
 isabella
 isbel
@@ -13697,7 +13697,7 @@ nilu
 nimbl
 nimbl
 nimbler
-nimbl
+nimbli
 nine
 nineteen
 ning
@@ -13838,7 +13838,7 @@ novum
 now
 nowher
 noyanc
-ns
+n
 nt
 nubibu
 numa
@@ -15510,7 +15510,7 @@ posset
 possibl
 possibl
 possibl
-possibl
+possibli
 possit
 post
 post
@@ -17458,7 +17458,7 @@ royal
 royalti
 royalti
 roynish
-rs
+r
 rt
 rub
 rubb
@@ -18092,7 +18092,7 @@ sens
 senseless
 sens
 sensibl
-sensibl
+sensibli
 sensual
 sensual
 sent
@@ -20422,7 +20422,7 @@ terr
 terren
 terrestri
 terribl
-terribl
+terribli
 territori
 territori
 terror
@@ -21184,7 +21184,7 @@ trusti
 truth
 truth
 try
-ts
+t
 tu
 tuae
 tub
@@ -22126,7 +22126,7 @@ ursa
 urslei
 ursula
 urswick
-us
+u
 usag
 usanc
 usanc
@@ -22172,7 +22172,7 @@ utter
 utterli
 uttermost
 utter
-uy
+ui
 v
 va
 vacanc
@@ -22509,7 +22509,7 @@ visag
 visard
 viscount
 visibl
-visibl
+visibli
 vision
 vision
 visit
