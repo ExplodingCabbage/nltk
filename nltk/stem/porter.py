@@ -27,9 +27,6 @@ import re
 from nltk.stem.api import StemmerI
 from nltk.compat import python_2_unicode_compatible
 
-class _CannotReplaceSuffix(Exception):
-    pass
-
 @python_2_unicode_compatible
 class PorterStemmer(StemmerI):
     """
@@ -185,6 +182,16 @@ class PorterStemmer(StemmerI):
             if not self._cons(stem, i):
                 return True
         return False
+        
+    def _ends_double_consonant(self, word):
+        """Implements condition *d from the paper
+        
+        Returns True if word ends with a double consonant
+        """
+        return (
+            word[-1] == word[-2] and
+            self._cons(word, len(word)-1)
+        )
 
     def _ends_cvc(self, word):
         """Implements condition *o from the paper
@@ -210,24 +217,12 @@ class PorterStemmer(StemmerI):
     def _replace_suffix(self, word, suffix, replacement):
         """Replaces `suffix` of `word` with `replacement"""
         assert word.endswith(suffix), "Given word doesn't end with given suffix"
-        return word[:-len(suffix)] + replacement
-
-    def _replace_suffix_if(self, word, suffix, replacement, condition):
-        """If `condition`, replace suffix with replacement, else raise
-        
-        `condition` should be a lambda that takes the word and stem as
-        arguments and returns True or False.
-        """
-        if not word.endswith(suffix):
-            raise _CannotReplaceSuffix("word does not end with suffix")
+        if suffix == '':
+            return word + replacement
         else:
-            stem = self._replace_suffix(word, suffix, replacement)
-            if condition is None or condition(stem):
-                return stem
-            else:
-                raise _CannotReplaceSuffix("condition not met")
+            return word[:-len(suffix)] + replacement
                 
-    def _apply_first_possible_rule(self, word, rules):
+    def _apply_rule_list(self, word, rules):
         """Applies the first applicable suffix-removal rule to the word
         
         Takes a word and a list of suffix-removal rules represented as
@@ -237,10 +232,21 @@ class PorterStemmer(StemmerI):
         or None if the rule is unconditional.
         """
         for rule in rules:
-            try:
-                return self._replace_suffix_if(word, *rule)
-            except _CannotReplaceSuffix:
-                pass
+            suffix, replacement, condition = rule
+            if suffix == '*d' and self._ends_double_consonant(word):
+                stem = word[:-2]
+                if condition is None or condition(stem):
+                    return stem + replacement
+                else:
+                    # Don't try any further rules
+                    return word
+            if word.endswith(suffix):
+                stem = self._replace_suffix(word, suffix, '')
+                if condition is None or condition(stem):
+                    return stem + replacement
+                else:
+                    # Don't try any further rules
+                    return word
                 
         return word
         
@@ -255,18 +261,14 @@ class PorterStemmer(StemmerI):
             SS   -> SS                         caress    ->  caress
             S    ->                            cats      ->  cat
         """
-        return self._apply_first_possible_rule(word, [
+        # this NLTK-only rule extends the original algorithm, so
+        # that 'flies'->'fli' but 'dies'->'die' etc
+        if self.mode == self.NLTK_EXTENSIONS:
+            if word.endswith('ies') and len(word) == 4:
+                return self._replace_suffix(word, 'ies', 'ie')
+            
+        return self._apply_rule_list(word, [
             ('sses', 'ss', None), # SSES -> SS
-            
-            # this NLTK-only rule extends the original algorithm, so
-            # that 'flies'->'fli' but 'dies'->'die' etc
-            (
-                'ies',
-                'ie',
-                lambda stem: (self.mode == self.NLTK_EXTENSIONS and
-                              len(word) == 4)
-            ),
-            
             ('ies', 'i', None),   # IES  -> I
             ('ss', 'ss', None),   # SS   -> SS
             ('s', '', None),      # S    ->
@@ -308,47 +310,42 @@ class PorterStemmer(StemmerI):
         # this NLTK-only block extends the original algorithm, so that
         # 'spied'->'spi' but 'died'->'die' etc
         if self.mode == self.NLTK_EXTENSIONS:
-            try:
-                return self._replace_suffix_if(
-                    word, 'ied', 'ie', lambda stem: len(word) == 4
-                )
-            except _CannotReplaceSuffix:
-                pass
+            if word.endswith('ied'):
+                if len(word) == 4:
+                    return self._replace_suffix(word, 'ied', 'ie')
+                else:
+                    return self._replace_suffix(word, 'ied', 'i')
         
-        try:
-            # (m>0) EED -> EE
-            return self._replace_suffix_if(
-                word, 'eed', 'ee', lambda stem: self._measure(stem) > 0
-            )
-        except _CannotReplaceSuffix:
-            pass
+        # (m>0) EED -> EE
+        if word.endswith('eed'):
+            stem = self._replace_suffix(word, 'eed', '')
+            if self._measure(stem) > 0:
+                return stem + 'ee'
+            else:
+                return word
             
         rule_2_or_3_succeeded = False
-        for rule in [
-            ('ed', '', self._contains_vowel),  # (*v*) ED  ->   
-            ('ing', '', self._contains_vowel), # (*v*) ING ->
-        ]:
-            try:
-                intermediate_stem = self._replace_suffix_if(word, *rule)
-                rule_2_or_3_succeeded = True
-                break
-            except _CannotReplaceSuffix:
-                pass
+        
+        for suffix in ['ed', 'ing']:
+            if word.endswith(suffix):
+                intermediate_stem = self._replace_suffix(word, suffix, '')
+                if self._contains_vowel(intermediate_stem):
+                    rule_2_or_3_succeeded = True
+                    break
                 
         if not rule_2_or_3_succeeded:
             return word
-        
-        final_letter = intermediate_stem[-1]
-        return self._apply_first_possible_rule(intermediate_stem, [
+
+        return self._apply_rule_list(intermediate_stem, [
             ('at', 'ate', None), # AT -> ATE
             ('bl', 'ble', None), # BL -> BLE
             ('iz', 'ize', None), # IZ -> IZE
             # (*d and not (*L or *S or *Z))
             # -> single letter
             (
-                final_letter*2,
-                final_letter,
-                lambda stem: final_letter not in ('l', 's', 'z')
+                '*d',
+                intermediate_stem[-1],
+                lambda stem: intermediate_stem[-1] not in ('l', 's', 'z')
             ),
             # (m=1 and *o) -> E
             (
@@ -393,16 +390,14 @@ class PorterStemmer(StemmerI):
         def original_condition(stem):
             return self._contains_vowel(stem)
         
-        try:
-            return self._replace_suffix_if(
-                word,
+        return self._apply_rule_list(word, [
+            (
                 'y',
                 'i',
                 nltk_condition if self.mode == self.NLTK_EXTENSIONS
                                else original_condition
             )
-        except _CannotReplaceSuffix:
-            return word
+        ])
 
     def _step2(self, word):
         """Implements Step 2 from "An algorithm for suffix stripping"
@@ -438,16 +433,15 @@ class PorterStemmer(StemmerI):
             # Instead of applying the ALLI -> AL rule after '(a)bli' per
             # the published algorithm, instead we apply it first, and,
             # if it succeeds, run the result through step2 again.
-            try:
-                stem = self._replace_suffix_if(
-                    word,
-                    'alli',
-                    'al',
-                    self._has_positive_measure
+            if (
+                word.endswith('alli') and
+                self._has_positive_measure(
+                    self._replace_suffix(word, 'alli', '')
                 )
-                return self._step2(stem)
-            except _CannotReplaceSuffix:
-                pass
+            ):
+                return self._step2(
+                    self._replace_suffix(word, 'alli', 'al')
+                )
         
         bli_rule = ('bli', 'ble', self._has_positive_measure)
         abli_rule = ('abli', 'able', self._has_positive_measure)
@@ -496,7 +490,7 @@ class PorterStemmer(StemmerI):
                 ("logi", "log", self._has_positive_measure)
             )
         
-        return self._apply_first_possible_rule(word, rules)
+        return self._apply_rule_list(word, rules)
 
     def _step3(self, word):
         """Implements Step 3 from "An algorithm for suffix stripping"
@@ -513,7 +507,7 @@ class PorterStemmer(StemmerI):
             (m>0) FUL   ->                  hopeful        ->  hope
             (m>0) NESS  ->                  goodness       ->  good
         """
-        return self._apply_first_possible_rule(word, [
+        return self._apply_rule_list(word, [
             ('icate', 'ic', self._has_positive_measure),
             ('ative', '', self._has_positive_measure),
             ('alize', 'al', self._has_positive_measure),
@@ -553,7 +547,7 @@ class PorterStemmer(StemmerI):
         """
         measure_gt_1 = lambda stem: self._measure(stem) > 1
         
-        return self._apply_first_possible_rule(word, [
+        return self._apply_rule_list(word, [
             ('al', '', measure_gt_1),
             ('ance', '', measure_gt_1),
             ('ence', '', measure_gt_1),
@@ -593,17 +587,30 @@ class PorterStemmer(StemmerI):
                                             rate           ->  rate
             (m=1 and not *o) E ->           cease          ->  ceas
         """
-        return self._apply_first_possible_rule(word, [
-            ('e', '', lambda stem: self._measure(stem) > 1),
-            (
-                'e',
-                '',
-                lambda stem: (
-                    self._measure(stem) == 1 and
-                    not self._ends_cvc(stem)
-                )
-            )
-        ])
+        # Note that Martin's test vocabulary and reference
+        # implementations are inconsistent in how they handle the case
+        # where two rules both refer to a suffix that matches the word
+        # to be stemmed, but only the condition of the second one is
+        # true.
+        # Earlier in step2b we had the rules:
+        #     (m>0) EED -> EE
+        #     (*v*) ED  ->
+        # but the examples in the paper included "feed"->"feed", even
+        # though (*v*) is true for "fe" and therefore the second rule
+        # alone would map "feed"->"fe".
+        # However, in THIS case, we need to handle the consecutive rules
+        # differently and try both conditions (obviously; the second
+        # rule here would be redundant otherwise). Martin's paper makes
+        # no explicit mention of the inconsistency; you have to infer it
+        # from the examples.
+        # For this reason, we can't use _apply_rule_list here.
+        if word.endswith('e'):
+            stem = self._replace_suffix(word, 'e', '')
+            if self._measure(stem) > 1:
+                return stem
+            if self._measure(stem) == 1 and not self._ends_cvc(stem):
+                return stem
+        return word
 
     def _step5b(self, word):
         """Implements Step 5a from "An algorithm for suffix stripping"
@@ -616,13 +623,8 @@ class PorterStemmer(StemmerI):
                                     controll       ->  control
                                     roll           ->  roll
         """
-        # The rule is expressed in an overcomplicated way in Porter's
-        # paper, but all it means it that double-l should become
-        # single-l. It could've been written more straightforwardly as:
-        #
-        #     (m > 1) LL -> L
-        return self._apply_first_possible_rule(word, [
-            ('ll', 'l', lambda stem: self._measure(stem) > 1)
+        return self._apply_rule_list(word, [
+            ('ll', 'l', lambda stem: self._measure(word[:-1]) > 1)
         ])
 
     def stem(self, word):
